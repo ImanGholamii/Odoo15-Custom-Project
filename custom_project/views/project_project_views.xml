@@ -13,11 +13,18 @@
         </field>
     </record>
 
-    <!-- Define Menu for Technical_Director and limits -->
+    <!-- Define Menu and action for Technical_Director and limits -->
+    <record id="action_project_config" model="ir.actions.act_window">
+        <field name="name">Project Configurations</field>
+        <field name="res_model">project.project</field>
+        <field name="view_mode">tree,form,kanban</field>
+    </record>
+
     <record id="menu_project_config" model="ir.ui.menu">
         <field name="name">Project Configurations</field>
         <field name="parent_id" ref="project.menu_main_pm"/>
         <field name="sequence" eval="100"/>
+        <field name="action" ref="custom_project.action_project_config"/>
         <field name="groups_id" eval="[(4, ref('custom_project.group_technical_director'))]"/>
     </record>
 
