@@ -27,8 +27,10 @@ class CustomProjectTask(models.Model):
 
         if 'project_id' in vals:
             project = self.env['project.project'].browse(vals['project_id'])
+            # total_task_hours = sum(task.planned_hours for task in project.task_ids)
             total_task_hours = sum(project.task_ids.mapped('planned_hours'))
-
+            # new_task_hours = vals.get('planned_hours', 0)
+            # if total_task_hours + new_task_hours > project.allocated_hours:
             print(f"total_task_hours: {total_task_hours}\nallocated_hours:{project.allocated_hours}")
 
             if total_task_hours > project.allocated_hours:
@@ -40,6 +42,7 @@ class CustomProjectTask(models.Model):
                 )
         return task
 
+    # After Meeting
     # Allocated Hours to Employees
     allocation_ids = fields.One2many(
         'project.task.allocation',
@@ -47,6 +50,8 @@ class CustomProjectTask(models.Model):
         string="Employee Allocations",
         help="Distribute the planned hours among the assigned employees."
     )
+
+    # 4 Feb
 
     allocated_hours_current_employee = fields.Float(
         string="Your Allocated Hours",
@@ -66,6 +71,7 @@ class CustomProjectTask(models.Model):
             else:
                 task.allocated_hours_current_employee = 0.0
 
+    # Start After meeting Feb 17
     total_project_hours = fields.Float(
         string="Total Project Hours",
         readonly=True,
@@ -84,6 +90,8 @@ class CustomProjectTask(models.Model):
         readonly=True,
         store=False,
     )
+
+    # end
 
 
 class CustomProjectProject(models.Model):
@@ -108,7 +116,7 @@ class CustomProjectProject(models.Model):
         help="Maximum allowed hours for tasks in this project."
     )
 
-
+    # start Feb 17 after meeting
     state = fields.Selection([
         ('draft', 'Draft'),
         ('in_progress', 'In Progress'),
@@ -119,7 +127,9 @@ class CustomProjectProject(models.Model):
 
     def mark_as_completed(self):
         for project in self:
-
+            # if self.env.user == project.technical_director_id or self.env.user.has_group('base.group_system'):
+            #     project.state = 'completed'
+            #     project.completed_at = fields.Datetime.now()
             if project.technical_director_id and self.env.user == project.technical_director_id or self.env.user.has_group(
                     'base.group_system'):
                 project.write({
@@ -137,6 +147,8 @@ class CustomProjectProject(models.Model):
             'state': 'completed',
             'completed_at': fields.Datetime.now()
         })
+
+    # end
 
     @api.constrains('technical_director_id')
     def _check_technical_director(self):
@@ -203,20 +215,22 @@ class AccountAnalyticLine(models.Model):
         if task_id:
             task = self.env['project.task'].browse(task_id)
 
+            # start Feb 17 after meeting
             project = task.project_id
             if project.state == 'completed':
                 raise ValidationError("The project is Completed. You cannot log time anymore.")
+            # end
 
             if self.env.user not in task.user_ids:
                 raise AccessError("You are not assigned to this task.")
 
+            # After Meeting
             # Check an Employee is assigned to task or not
             allocation = task.allocation_ids.filtered(lambda a: a.employee_id == self.env.user)
             if not allocation:
                 raise AccessError("You do not have permission to add timesheet records."
                                   "\nPlease ask the Project Manager to add you to the Task."
                                   "\n⚙️\n  |_The user first must be Assigned to task, then must be added to Notebook >> Allocations tab)")
-                
             # Calculate the total timesheet hours recorded for this user on this task.
             timesheet_lines = self.search([
                 ('task_id', '=', task_id),
@@ -236,6 +250,7 @@ class AccountAnalyticLine(models.Model):
             if self.env.user not in task.user_ids:
                 raise AccessError("You are not assigned to this task. So couldn't edit this Task.")
 
+        # After Meeting
         for line in self:
             task = line.task_id
             if task:
@@ -257,6 +272,8 @@ class AccountAnalyticLine(models.Model):
 
     date = fields.Datetime(string="Date and Time", required=True)
 
+
+# After Meeting
 
 class ProjectTaskAllocation(models.Model):
     _name = 'project.task.allocation'
