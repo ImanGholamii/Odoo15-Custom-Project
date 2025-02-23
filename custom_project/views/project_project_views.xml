@@ -27,10 +27,18 @@
         <field name="model">project.project</field>
         <field name="inherit_id" ref="project.edit_project"/>
         <field name="arch" type="xml">
+            <!-- start After meeting Feb 17 -->
+            <xpath expr="//header" position="inside">
+                <field name="state" widget="statusbar" options="{'clickable': '1'}"
+                       statusbar_visible="draft,in_progress,completed"
+                       groups="custom_project.group_technical_director,base.group_system"/>
+            </xpath>
+            <!-- end -->
             <field name="user_id" position="attributes">
                 <attribute name="groups">base.group_system,custom_project.group_technical_director</attribute>
             </field>
             <xpath expr="//group" position="after">
+
                 <group>
                     <field name="allocated_hours"
                            widget="float_time"
@@ -48,11 +56,20 @@
             <field name="user_id" position="attributes">
                 <attribute name="groups">base.group_system,custom_project.group_technical_director</attribute>
             </field>
+            <!-- start After meeting Feb 17 -->
+            <xpath expr="//tree" position="attributes">
+                <attribute name="decoration-warning">state=='in_progress'</attribute>
+                <attribute name="decoration-success">state=='completed'</attribute>
+            </xpath>
+            <xpath expr="//tree//field[@name='last_update_status']" position="after">
+                <field name="state"/>
+            </xpath>
+            <!-- end -->
         </field>
     </record>
 
     <!-- project.task
-    To avoid editing planned_hours by other users I added a hidden field-->
+    To avoid editing planned_hours by other users I added a hidden field -->
 
     <record id="view_task_form_inherit" model="ir.ui.view">
         <field name="name">project.task.form.inherit</field>
@@ -71,7 +88,7 @@
                 <field name="allocated_hours_current_employee" readonly="1" widget="float_time"/>
             </xpath>
 
-            <!-- Feb 17 -->
+            <!-- After Meeting Feb 17 -->
             <xpath expr="//field[@name='progress']" position="before">
                 <field name="total_project_hours" readonly="1" class="dark-purple-field"/>
             </xpath>
@@ -84,6 +101,10 @@
         <field name="model">project.task</field>
         <field name="inherit_id" ref="project.view_task_form2"/>
         <field name="arch" type="xml">
+            <!-- After meeting Feb 17 -->
+            <xpath expr="//header" position="inside">
+                <field name="project_state" widget="statusbar" statusbar_visible="draft,in_progress,completed"/>
+            </xpath>
             <!-- Placing the Assignment tab after the Timesheet tab or in the appropriate place -->
             <xpath expr="//sheet/notebook" position="inside">
                 <page string="Allocations" groups="custom_project.group_project_manager">
@@ -115,6 +136,5 @@
             </field>
         </field>
     </record>
-
 
 </odoo>
