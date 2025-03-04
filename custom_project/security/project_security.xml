@@ -1,5 +1,6 @@
 <odoo>
     <!--    Phase 03    -->
+    <!-- Technical Director -->
     <record id="group_technical_director" model="res.groups">
         <field name="name">Technical Director</field>
         <field name="category_id" ref="base.module_category_project_management"/>
@@ -11,9 +12,16 @@
     <!-- Group -->
     <record id="group_project_manager" model="res.groups">
         <field name="name">Project Manager</field>
-        <field name="category_id" ref="base.module_category_project"/>
+        <field name="category_id" ref="base.module_category_project_management"/>
         <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
     </record>
+
+
+    <record id="group_followers_all_projects" model="res.groups">
+        <field name="name">Followers of all Projects</field>
+        <field name="category_id" ref="base.module_category_project_management"/>
+    </record>
+
 
     <!-- Access -->
     <record id="project_manager_task_access" model="ir.model.access">
@@ -37,6 +45,30 @@
         <field name="perm_create" eval="False"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="project_rule_own_projects_edit" model="ir.rule">
+        <field name="name">Edit Own Projects Only</field>
+        <field name="model_id" ref="project.model_project_project"/>
+        <field name="domain_force">['|', '|', ('create_uid', '=', user.id), ('message_partner_ids', 'in',
+            [user.partner_id.id]),
+            ('user_id', 'in', [user.id] if user.has_group('base.group_system') else [])]
+        </field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- To Delete a Project By Owner -->
+    <record id="project_delete_wizard_access_owner" model="ir.model.access">
+        <field name="name">Project Delete Wizard Access for Owners</field>
+        <field name="model_id" ref="project.model_project_delete_wizard"/>
+        <field name="group_id" eval="False"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
     </record>
 
 </odoo>
