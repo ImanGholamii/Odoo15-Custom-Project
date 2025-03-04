@@ -444,7 +444,7 @@ class MailFollowers(models.Model):
                 and (user.has_group(f"{admin_group}") or (followers_group and user in followers_group.users))
                 and not self.env.context.get('deleting_whole_project')
             ):
-                raise exceptions.UserError(
+                raise UserError(
                     _("❌\nYou cannot remove an admin or a 'Followers of all Projects' member from project followers.🚫"))
 
         return super(MailFollowers, self).unlink()
