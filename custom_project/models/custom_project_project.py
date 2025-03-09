@@ -17,7 +17,14 @@ class CustomProjectTask(models.Model):
 
     def _compute_planned_hours_readonly(self):
         for task in self:
-            task.planned_hours_readonly = task.create_uid != self.env.user
+            # task.planned_hours_readonly = task.create_uid != self.env.user
+            is_admin = self.env.user.has_group("base.group_system")
+            task.planned_hours_readonly = not (
+                is_admin or
+                task.create_uid == self.env.user or
+                task.user_id == self.env.user or
+                task.technical_director_id == self.env.user
+            )
 
     planned_hours_readonly = fields.Boolean(compute="_compute_planned_hours_readonly")
 
@@ -53,6 +60,8 @@ class CustomProjectTask(models.Model):
             raise ValidationError(
                 f"Total allocated hours and subtask hours cannot exceed the planned hours for this task!"
             )
+
+        # Mar 05
         return task
 
     # Allocated Hours to Employees
@@ -156,6 +165,7 @@ class CustomProjectTask(models.Model):
 
     def write(self, vals):
         """ Checking restrictions when editing a task """
+
         res = super().write(vals)
         for task in self:
             if task.subtask_hours_total + task.allocated_hours_total > task.planned_hours:
@@ -170,7 +180,29 @@ class CustomProjectTask(models.Model):
         for task in self:
             allocated_and_subtask_hours = task.allocated_hours_total + task.subtask_hours_total
             task.remaining_hours_for_subtasks = max(task.planned_hours - allocated_and_subtask_hours, 0)
+
     # end
+    # Mar 09
+    project_id = fields.Many2one('project.project', string='Project')
+    user_id = fields.Many2one(
+        'res.users', related='project_id.user_id', string='Project Manager', readonly=True)
+    technical_director_id = fields.Many2one(
+        'res.users', related='project_id.technical_director_id', string='Project Director', readonly=True)
+    show_allocation = fields.Boolean(compute='_compute_show_allocation')
+
+    @api.depends('project_id.user_id', 'project_id.technical_director_id')
+    def _compute_show_allocation(self):
+        for record in self:
+            user = self.env.user
+            is_admin = user.has_group('base.group_system')
+
+            if (record.project_id.user_id.id == user.id or
+                    record.project_id.technical_director_id.id == user.id or
+                    is_admin):
+                record.show_allocation = True
+            else:
+                record.show_allocation = False
+    # End
 
 
 class CustomProjectProject(models.Model):
@@ -266,6 +298,10 @@ class CustomProjectProject(models.Model):
             followers_users = followers_group.users
             project.message_subscribe(partner_ids=followers_users.mapped('partner_id').ids)
 
+        # Mar 05 >> Adding Director to Followers
+        if vals.get('technical_director_id'):
+            project.message_subscribe(partner_ids=[project.technical_director_id.partner_id.id])
+
         return project
         # end
 
@@ -297,6 +333,12 @@ class CustomProjectProject(models.Model):
                 if project_manager and group_manager and project_manager not in group_manager.users:
                     group_manager.users = [(4, project_manager.id)]
 
+        # Mar 05
+        if 'technical_director_id' in vals:
+            for project in self:
+                if project.technical_director_id:
+                    project.message_subscribe(partner_ids=[project.technical_director_id.partner_id.id])
+
         return res
 
     def unlink(self):
@@ -304,10 +346,13 @@ class CustomProjectProject(models.Model):
         if not self.env.context.get('deleting_whole_project'):
             for project in self:
                 if project.user_id == self.env.user:
-                    return super(CustomProjectProject, self).with_context(deleting_whole_project=True).sudo().unlink()
+                    return super(CustomProjectProject, self).with_context(deleting_whole_project=True,
+                                                                          allow_project_delete=True).sudo().unlink()
 
-            return super(CustomProjectProject, self).with_context(deleting_whole_project=True).unlink()
+            return super(CustomProjectProject, self).with_context(deleting_whole_project=True,
+                                                                  allow_project_delete=True).unlink()
         return super(CustomProjectProject, self).unlink()
+
 
 class AccountAnalyticLine(models.Model):
     _inherit = 'account.analytic.line'
@@ -420,10 +465,11 @@ class ProjectTaskAllocation(models.Model):
 class MailFollowers(models.Model):
     _inherit = "mail.followers"
 
-    @api.model
+    # @api.model
     def unlink(self):
         """Avoid deleting Admin members and 'Followers of all Projects' members from project followers
         (except when deleting a task or a project)"""
+        print("🔴 حذف فالوور‌ها: ", self.mapped('partner_id').ids)
 
         # If the deletion operation is performed on a project or task, no special review is required.
         if self.env.context.get('allow_task_delete') or self.env.context.get('allow_project_delete'):
@@ -440,15 +486,108 @@ class MailFollowers(models.Model):
 
             # Prevent manual deletion of members of two groups (but allow deletion if the entire project is deleted)
             if (
-                user
-                and (user.has_group(f"{admin_group}") or (followers_group and user in followers_group.users))
-                and not self.env.context.get('deleting_whole_project')
+                    user
+                    and (user.has_group('base.group_system') or (followers_group and user in followers_group.users))
+                    and not self.env.context.get('deleting_whole_project')
             ):
                 raise UserError(
                     _("❌\nYou cannot remove an admin or a 'Followers of all Projects' member from project followers.🚫"))
+        # Mar 06
+        # This code will removes the user from all task followers section
+        # partners_to_remove = self.mapped('partner_id')
+        # _logger.info("📌 افرادی که باید حذف شوند: %s", partners_to_remove.ids)
+        # test_task = self.env['project.task'].search([], limit=1)
+        # print(f"📌 یک نمونه تسک: {test_task.id} - فالوورها: {test_task.message_follower_ids.ids}")
+        # self.env.cr.execute("""
+        #     SELECT res_id FROM mail_followers
+        #     WHERE res_model = 'project.task' AND partner_id = %s
+        # """, (44,))
+        # task_ids = [row[0] for row in self.env.cr.fetchall()]
+        # print(f"📌 تسک‌هایی که این فالوور در آن‌ها هست: {task_ids}")
+        #
+        # # جستجو برای تسک‌هایی که این افراد به عنوان فالوور در آن‌ها هستند
+        # tasks = self.env['project.task'].search([])
+        # filtered_tasks = tasks.filtered(lambda t: 44 in t.message_follower_ids.mapped('partner_id').ids)
+        # print(f"📌 تسک‌های دارای فالوور 44: {filtered_tasks.ids}")
+        #
+        # for task in filtered_tasks:  # فقط تسک‌هایی که این فالوور در آن‌ها بود
+        #     print(f"📌 تسک {task.id} دارای کاربران: {task.user_ids.ids}")
+        #     users_to_remove = task.user_ids.filtered(lambda user: user.partner_id in partners_to_remove)
+        #     print(f"############ User to Remove: {users_to_remove.ids}")
+        #
+        #     if users_to_remove:
+        #         task.write({'user_ids': [(3, user.id) for user in users_to_remove]})
+        #         print(f"✅ کاربران {users_to_remove.ids} از تسک {task.id} حذف شدند!")
 
+        # This code will removes the user from current task followers section
+
+        partners_to_remove = self.mapped('partner_id')
+        current_user = self.env.user  # دریافت کاربر فعلی
+
+        _logger.info(
+            "📌 partners_to_remove: %s | 🔍 Removed by: %s (ID: %s)",
+            partners_to_remove.ids,
+            current_user.name,
+            current_user.id
+        )
+
+        task_id_to_remove_from = self.env.context.get('task_id')
+
+        if not task_id_to_remove_from:
+            if self.res_model == 'project.task':
+                task_id_to_remove_from = self.res_id  # مقدار صحیح تسک را از mail.followers بگیر
+
+        print(f"✅ مقدار نهایی task_id_to_remove_from: {task_id_to_remove_from}")
+
+        if not task_id_to_remove_from:
+            _logger.warning("آیدی تسک یافت نشد!")
+        else:
+            task_to_modify = self.env['project.task'].browse(task_id_to_remove_from)
+            print(f"task_to_modify: {task_to_modify}")
+
+            if task_to_modify.exists():
+                print(f"📌 تسک {task_to_modify.id} دارای کاربران: {task_to_modify.user_ids.ids}")
+                users_to_remove = task_to_modify.user_ids.filtered(
+                    lambda user: user.partner_id in self.mapped('partner_id'))
+
+                if users_to_remove:
+                    task_to_modify.write({'user_ids': [(3, user.id) for user in users_to_remove]})
+                    print(f"✅ کاربران {users_to_remove.ids} از تسک {task_to_modify.id} حذف شدند!")
+            else:
+                print("📌 ❌ تسک مورد نظر پیدا نشد!")
+
+        # End
         return super(MailFollowers, self).unlink()
 
+    # Mar 09
+    @api.model
+    def create(self, vals):
+        follower = super(MailFollowers, self).create(vals)
+
+        # بررسی کنیم که این فالوور مربوط به یک تسک است
+        if follower.res_model == 'project.task':
+            task = self.env['project.task'].browse(follower.res_id)
+            partner = follower.partner_id
+
+            # اگر این فالوور یک کاربر Odoo دارد، او را به user_ids اضافه کن
+            if partner.user_ids:
+                task.write({'user_ids': [(4, partner.user_ids[0].id)]})
+
+        return follower
+
+    def write(self, vals):
+        res = super(MailFollowers, self).write(vals)
+
+        for follower in self:
+            if follower.res_model == 'project.task':
+                task = self.env['project.task'].browse(follower.res_id)
+                partner = follower.partner_id
+
+                if partner.user_ids:
+                    task.write({'user_ids': [(4, partner.user_ids[0].id)]})
+
+        return res
+    # End
 
 
 class ProjectDeleteWizard(models.TransientModel):
