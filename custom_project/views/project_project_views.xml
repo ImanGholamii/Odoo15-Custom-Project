@@ -60,6 +60,10 @@
                            groups="custom_project.group_technical_director, base.group_user"/>
                 </group>
             </xpath>
+
+            <xpath expr="//field[@name='user_id']" position="before">
+                <field name="technical_director_id"/>
+            </xpath>
         </field>
     </record>
 
@@ -91,6 +95,13 @@
         <field name="model">project.task</field>
         <field name="inherit_id" ref="project.view_task_form2"/>
         <field name="arch" type="xml">
+
+            <!-- adding Director and PM to task Form -->
+            <xpath expr="//field[@name='partner_id']" position="before">
+                <field name="technical_director_id" readonly="1"/>
+                <field name="user_id" readonly="1"/>
+            </xpath>
+
             <xpath expr="//field[@name='planned_hours']" position="attributes">
                 <attribute name="attrs">{'readonly': [('planned_hours_readonly', '=', True)]}</attribute>
             </xpath>
@@ -134,8 +145,14 @@
 
              -->
             <xpath expr="//sheet/notebook" position="inside">
+                <field name="project_id" invisible="1"/>
+                <field name="technical_director_id" invisible="1"/>
+                <field name="user_id" invisible="1"/>
+                <field name="show_allocation" invisible="1"/>
+
                 <page string="My Team">
-                    <field name="allocation_ids" nolabel="1">
+                    <field name="allocation_ids" nolabel="1" attrs="{'invisible': [('show_allocation', '=', False)]}">
+
                         <tree editable="bottom">
                             <field name="employee_id"/>
                             <field name="allocated_hours" widget="float_time"/>
@@ -163,7 +180,6 @@
                             <field name="task_id" invisible="1"/>
                             <field name="description"/>
                             <field name="request_date" widget="datetime"/>
-
 
                         </tree>
                         <form string="Request of Extra Time Details ⏱️">
