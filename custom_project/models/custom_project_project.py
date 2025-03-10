@@ -469,7 +469,7 @@ class MailFollowers(models.Model):
     def unlink(self):
         """Avoid deleting Admin members and 'Followers of all Projects' members from project followers
         (except when deleting a task or a project)"""
-        print("🔴 حذف فالوور‌ها: ", self.mapped('partner_id').ids)
+        print("🔴 Delete followers: ", self.mapped('partner_id').ids)
 
         # If the deletion operation is performed on a project or task, no special review is required.
         if self.env.context.get('allow_task_delete') or self.env.context.get('allow_project_delete'):
@@ -493,36 +493,11 @@ class MailFollowers(models.Model):
                 raise UserError(
                     _("❌\nYou cannot remove an admin or a 'Followers of all Projects' member from project followers.🚫"))
         # Mar 06
-        # This code will removes the user from all task followers section
-        # partners_to_remove = self.mapped('partner_id')
-        # _logger.info("📌 افرادی که باید حذف شوند: %s", partners_to_remove.ids)
-        # test_task = self.env['project.task'].search([], limit=1)
-        # print(f"📌 یک نمونه تسک: {test_task.id} - فالوورها: {test_task.message_follower_ids.ids}")
-        # self.env.cr.execute("""
-        #     SELECT res_id FROM mail_followers
-        #     WHERE res_model = 'project.task' AND partner_id = %s
-        # """, (44,))
-        # task_ids = [row[0] for row in self.env.cr.fetchall()]
-        # print(f"📌 تسک‌هایی که این فالوور در آن‌ها هست: {task_ids}")
-        #
-        # # جستجو برای تسک‌هایی که این افراد به عنوان فالوور در آن‌ها هستند
-        # tasks = self.env['project.task'].search([])
-        # filtered_tasks = tasks.filtered(lambda t: 44 in t.message_follower_ids.mapped('partner_id').ids)
-        # print(f"📌 تسک‌های دارای فالوور 44: {filtered_tasks.ids}")
-        #
-        # for task in filtered_tasks:  # فقط تسک‌هایی که این فالوور در آن‌ها بود
-        #     print(f"📌 تسک {task.id} دارای کاربران: {task.user_ids.ids}")
-        #     users_to_remove = task.user_ids.filtered(lambda user: user.partner_id in partners_to_remove)
-        #     print(f"############ User to Remove: {users_to_remove.ids}")
-        #
-        #     if users_to_remove:
-        #         task.write({'user_ids': [(3, user.id) for user in users_to_remove]})
-        #         print(f"✅ کاربران {users_to_remove.ids} از تسک {task.id} حذف شدند!")
 
-        # This code will removes the user from current task followers section
+        # This code will remove the user from current task followers section
 
         partners_to_remove = self.mapped('partner_id')
-        current_user = self.env.user  # دریافت کاربر فعلی
+        current_user = self.env.user
 
         _logger.info(
             "📌 partners_to_remove: %s | 🔍 Removed by: %s (ID: %s)",
@@ -535,26 +510,26 @@ class MailFollowers(models.Model):
 
         if not task_id_to_remove_from:
             if self.res_model == 'project.task':
-                task_id_to_remove_from = self.res_id  # مقدار صحیح تسک را از mail.followers بگیر
+                task_id_to_remove_from = self.res_id
 
-        print(f"✅ مقدار نهایی task_id_to_remove_from: {task_id_to_remove_from}")
+        print(f"✅ Final amount >> task_id_to_remove_from: {task_id_to_remove_from}")
 
         if not task_id_to_remove_from:
-            _logger.warning("آیدی تسک یافت نشد!")
+            _logger.warning("Task ID not found!")
         else:
             task_to_modify = self.env['project.task'].browse(task_id_to_remove_from)
             print(f"task_to_modify: {task_to_modify}")
 
             if task_to_modify.exists():
-                print(f"📌 تسک {task_to_modify.id} دارای کاربران: {task_to_modify.user_ids.ids}")
+                print(f"📌 Task {task_to_modify.id} Has users: {task_to_modify.user_ids.ids}")
                 users_to_remove = task_to_modify.user_ids.filtered(
                     lambda user: user.partner_id in self.mapped('partner_id'))
 
                 if users_to_remove:
                     task_to_modify.write({'user_ids': [(3, user.id) for user in users_to_remove]})
-                    print(f"✅ کاربران {users_to_remove.ids} از تسک {task_to_modify.id} حذف شدند!")
+                    print(f"✅ Users {users_to_remove.ids} from Task {task_to_modify.id} Deleted!")
             else:
-                print("📌 ❌ تسک مورد نظر پیدا نشد!")
+                print("📌 ❌ The requested task was not found!")
 
         # End
         return super(MailFollowers, self).unlink()
@@ -564,12 +539,12 @@ class MailFollowers(models.Model):
     def create(self, vals):
         follower = super(MailFollowers, self).create(vals)
 
-        # بررسی کنیم که این فالوور مربوط به یک تسک است
+        # Check if this follower is related to a task.
         if follower.res_model == 'project.task':
             task = self.env['project.task'].browse(follower.res_id)
             partner = follower.partner_id
 
-            # اگر این فالوور یک کاربر Odoo دارد، او را به user_ids اضافه کن
+            # If this follower has an Odoo user, add him to user_ids
             if partner.user_ids:
                 task.write({'user_ids': [(4, partner.user_ids[0].id)]})
 
