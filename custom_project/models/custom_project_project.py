@@ -15,23 +15,79 @@ class CustomProjectTask(models.Model):
                                  help='Time planned to achieve this task (including its sub-tasks).',
                                  tracking=True)
 
-    def _compute_planned_hours_readonly(self):
-        for task in self:
-            # task.planned_hours_readonly = task.create_uid != self.env.user
-            is_admin = self.env.user.has_group("base.group_system")
-            task.planned_hours_readonly = not (
-                is_admin or
-                task.create_uid == self.env.user or
-                task.user_id == self.env.user or
-                task.technical_director_id == self.env.user
-            )
-
     planned_hours_readonly = fields.Boolean(compute="_compute_planned_hours_readonly")
 
     # Mar 03
     child_ids = fields.One2many('project.task', 'parent_id', string="Sub-tasks")
 
     # end
+
+    # Allocated Hours to Employees
+    allocation_ids = fields.One2many(
+        'project.task.allocation',
+        'task_id',
+        string="Employee Allocations",
+        help="Distribute the planned hours among the assigned employees."
+    )
+
+    allocated_hours_current_employee = fields.Float(
+        string="Your Allocated Hours",
+        compute="_compute_allocated_hours",
+        store=False
+    )
+
+    total_project_hours = fields.Float(
+        string="Total Project Hours",
+        readonly=True,
+        compute="_compute_total_project_hours",
+        help="Total allocated hours for this project, defined by the Director."
+    )
+
+    project_state = fields.Selection(
+        related='project_id.state',
+        string="Project State",
+        readonly=True,
+        store=False,
+    )
+
+    overtime_request_ids = fields.One2many('overtime.request', 'task_id', string="Overtime Requests")
+
+    # Mar 03
+    allocated_hours_total = fields.Float(
+        string="Total Allocated Hours",
+        compute="_compute_allocated_hours_total",
+        store=True
+    )
+    subtask_hours_total = fields.Float(
+        string="Total Subtask Hours",
+        compute="_compute_subtask_hours_total",
+        store=True
+    )
+    remaining_hours_for_subtasks = fields.Float(
+        string="Remaining Hours for Subtasks",
+        compute="_compute_remaining_hours_for_subtasks",
+        store=True
+    )
+    # end
+    # Mar 09
+    project_id = fields.Many2one('project.project', string='Project')
+    user_id = fields.Many2one(
+        'res.users', related='project_id.user_id', string='Project Manager', readonly=True)
+    technical_director_id = fields.Many2one(
+        'res.users', related='project_id.technical_director_id', string='Project Director', readonly=True)
+    show_allocation = fields.Boolean(compute='_compute_show_allocation')
+
+    # End
+    def _compute_planned_hours_readonly(self):
+        for task in self:
+            # task.planned_hours_readonly = task.create_uid != self.env.user
+            is_admin = self.env.user.has_group("base.group_system")
+            task.planned_hours_readonly = not (
+                    is_admin or
+                    task.create_uid == self.env.user or
+                    task.user_id == self.env.user or
+                    task.technical_director_id == self.env.user
+            )
 
     @api.model
     def create(self, vals):
@@ -64,20 +120,6 @@ class CustomProjectTask(models.Model):
         # Mar 05
         return task
 
-    # Allocated Hours to Employees
-    allocation_ids = fields.One2many(
-        'project.task.allocation',
-        'task_id',
-        string="Employee Allocations",
-        help="Distribute the planned hours among the assigned employees."
-    )
-
-    allocated_hours_current_employee = fields.Float(
-        string="Your Allocated Hours",
-        compute="_compute_allocated_hours",
-        store=False
-    )
-
     @api.depends('allocation_ids.allocated_hours', 'allocation_ids.employee_id')
     def _compute_allocated_hours(self):
         user = self.env.user
@@ -90,43 +132,10 @@ class CustomProjectTask(models.Model):
             else:
                 task.allocated_hours_current_employee = 0.0
 
-    total_project_hours = fields.Float(
-        string="Total Project Hours",
-        readonly=True,
-        compute="_compute_total_project_hours",
-        help="Total allocated hours for this project, defined by the Director."
-    )
-
     @api.depends('project_id')
     def _compute_total_project_hours(self):
         for task in self:
             task.total_project_hours = task.project_id.allocated_hours if task.project_id else 0.0
-
-    project_state = fields.Selection(
-        related='project_id.state',
-        string="Project State",
-        readonly=True,
-        store=False,
-    )
-
-    overtime_request_ids = fields.One2many('overtime.request', 'task_id', string="Overtime Requests")
-
-    # Mar 03
-    allocated_hours_total = fields.Float(
-        string="Total Allocated Hours",
-        compute="_compute_allocated_hours_total",
-        store=True
-    )
-    subtask_hours_total = fields.Float(
-        string="Total Subtask Hours",
-        compute="_compute_subtask_hours_total",
-        store=True
-    )
-    remaining_hours_for_subtasks = fields.Float(
-        string="Remaining Hours for Subtasks",
-        compute="_compute_remaining_hours_for_subtasks",
-        store=True
-    )
 
     @api.constrains('planned_hours', 'child_ids')
     def _check_subtask_hours(self):
@@ -139,7 +148,7 @@ class CustomProjectTask(models.Model):
                     )
 
     def unlink(self):
-        """Allow task deletion, bypassing mail.followers restriction"""
+        """Allow task deletion, bypassing 'mail.followers' restriction"""
         return super(CustomProjectTask, self.with_context(allow_task_delete=True)).unlink()
 
     @api.depends("allocation_ids.allocated_hours")
@@ -181,15 +190,6 @@ class CustomProjectTask(models.Model):
             allocated_and_subtask_hours = task.allocated_hours_total + task.subtask_hours_total
             task.remaining_hours_for_subtasks = max(task.planned_hours - allocated_and_subtask_hours, 0)
 
-    # end
-    # Mar 09
-    project_id = fields.Many2one('project.project', string='Project')
-    user_id = fields.Many2one(
-        'res.users', related='project_id.user_id', string='Project Manager', readonly=True)
-    technical_director_id = fields.Many2one(
-        'res.users', related='project_id.technical_director_id', string='Project Director', readonly=True)
-    show_allocation = fields.Boolean(compute='_compute_show_allocation')
-
     @api.depends('project_id.user_id', 'project_id.technical_director_id')
     def _compute_show_allocation(self):
         for record in self:
@@ -202,7 +202,6 @@ class CustomProjectTask(models.Model):
                 record.show_allocation = True
             else:
                 record.show_allocation = False
-    # End
 
 
 class CustomProjectProject(models.Model):
@@ -287,12 +286,13 @@ class CustomProjectProject(models.Model):
         if project.state == 'completed':
             project.completed_at = fields.Datetime.now()
 
-        # Mar 03 >> Force adding admin users to all projects
-        admin_group = self.env.ref('base.group_system')
-        admin_users = admin_group.users
-
-        project.message_subscribe(partner_ids=admin_users.mapped('partner_id').ids)
-
+        # Mar 03 >> Force adding admin users and followers_group to all projects
+        # admin_group = self.env.ref('base.group_system')
+        # admin_users = admin_group.users
+        #
+        # project.message_subscribe(partner_ids=admin_users.mapped('partner_id').ids)
+        
+        # Mar 03 >> Force adding followers_group to all projects
         followers_group = self.env.ref('custom_project.group_followers_all_projects', raise_if_not_found=False)
         if followers_group:
             followers_users = followers_group.users
@@ -363,6 +363,8 @@ class AccountAnalyticLine(models.Model):
         default='draft',
     )
 
+    date = fields.Datetime(string="Date and Time", required=True)
+
     @api.model
     def create(self, vals):
         task_id = vals.get('task_id')
@@ -420,8 +422,6 @@ class AccountAnalyticLine(models.Model):
 
         return super(AccountAnalyticLine, self).write(vals)
 
-    date = fields.Datetime(string="Date and Time", required=True)
-
 
 class ProjectTaskAllocation(models.Model):
     _name = 'project.task.allocation'
@@ -459,8 +459,6 @@ class ProjectTaskAllocation(models.Model):
             if total_allocated > record.task_id.planned_hours:
                 raise ValidationError(f"Total allocated hours cannot exceed the planned hours for this task!")
 
-
-# Mar 4
 
 class MailFollowers(models.Model):
     _inherit = "mail.followers"
