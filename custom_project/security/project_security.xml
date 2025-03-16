@@ -50,9 +50,15 @@
     <record id="project_rule_own_projects_edit" model="ir.rule">
         <field name="name">Edit Own Projects Only</field>
         <field name="model_id" ref="project.model_project_project"/>
-        <field name="domain_force">['|', '|', ('create_uid', '=', user.id), ('message_partner_ids', 'in',
-            [user.partner_id.id]),
-            ('user_id', 'in', [user.id] if user.has_group('base.group_system') else [])]
+        <field name="domain_force">[
+             '|', '|',
+        ('create_uid', '=', user.id),
+        ('message_partner_ids', 'in', [user.partner_id.id]),
+        '|',
+        ('user_id', 'in', [user.id]),
+        ('id', '!=', False) if user.has_group('base.group_system') else ('id', '=', False)
+
+            ]
         </field>
         <field name="perm_read" eval="True"/>
         <field name="perm_create" eval="True"/>
