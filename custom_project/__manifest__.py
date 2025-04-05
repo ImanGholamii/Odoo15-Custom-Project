@@ -77,7 +77,7 @@
             'custom_project/static/src/css/custom_styles.css',
         ],
     },
-    'post_init_hook': 'assign_admins_to_existing_projects',
+    # 'post_init_hook': 'assign_admins_to_existing_projects',
     'icon': '/custom_project/static/description/icon.png',
     'demo': [],
     'installable': True,
