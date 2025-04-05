@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError, AccessError, UserError
 import logging
@@ -40,7 +38,7 @@ class CustomProjectTask(models.Model):
         string="Total Project Hours",
         readonly=True,
         compute="_compute_total_project_hours",
-        help="Total allocated hours for this project, defined by the Director."
+        help="Total allocated hours for this project, defined by the Director, Manager or Admin."
     )
 
     project_state = fields.Selection(
@@ -217,7 +215,8 @@ class CustomProjectProject(models.Model):
         'res.users',
         string="Director",
         required=True,
-        help="Responsible for defining the project and assigning the Project Manager."
+        help="Responsible for defining the project and assigning the Project Manager.",
+        tracking=True
     )
 
     allocated_hours = fields.Float(
@@ -277,9 +276,9 @@ class CustomProjectProject(models.Model):
                 raise AccessError("Only the Project Manager can create tasks for this project.")
 
         project = super(CustomProjectProject, self).create(vals)
-        if 'technical_director_id' in vals:
-            user = self.env['res.users'].browse(vals['technical_director_id'])
-            group = self.env.ref('custom_project.group_technical_director')
+        # if 'technical_director_id' in vals:
+        #     user = self.env['res.users'].browse(vals['technical_director_id'])
+        #     group = self.env.ref('custom_project.group_project_director')
             # if user and group and user not in group.users:  # Add the User to the group Automatically.
             #     group.users = [(4, user.id)]
 
@@ -291,7 +290,7 @@ class CustomProjectProject(models.Model):
         # admin_users = admin_group.users
         #
         # project.message_subscribe(partner_ids=admin_users.mapped('partner_id').ids)
-        
+
         # Mar 03 >> Force adding followers_group to all projects
         followers_group = self.env.ref('custom_project.group_followers_all_projects', raise_if_not_found=False)
         if followers_group:
@@ -313,16 +312,16 @@ class CustomProjectProject(models.Model):
     #                          justify-content: center; align-items: center; flex-direction: column;">
     #                             <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAACXBIWXMAAAsTAAALEwEAmpwYAAALL0lEQVR4nO1Ze1BTZxY/3703IeGVAFE0IBZRFKvUt6tVQFAU2oijKNqKFEFRFMV2fFFH0VbEFUFhum7pOjtrd6Hjqq2068xOweTGJLyUh/IKKJKoCKIICiQQKDvfLqQ3KcGEtbv+0TNz/rv3nPP7vvP+AH6j3+iNIWcAWAUAewEgBQC+BIBUADgAAJEA4AcA1vCG0UwASAeAaoKgHjk7TpHP8gyTBC84Jlvjd1YhejdJPm9qBD1B+K6Ub+tSjBDRAgD5AJAEAFP+X0YTALARAG6xKOsan3d20kejGh6n7+nvfxWf2a3riwvNq54z+UOaIjn3AOAGAIQDAPW/Mn4pAJTwbITFu9bSVaYMTdvd03M48t7DQxE16lM7XrQNCWZP308fBX9Twrd1KwaACgAI+TUN5wLAORbFrY1Z+f1tY2PO7u7tiwjOLnYXLqRJkn2PIIgn1tbWVTY2NlUkST5EiGjm244r8Ju5R5y0raXF+P9dayXVHCteJQBIAOCt1238ZAC4M3GcH316V5eWqfj0Lo3Wd+YuCUmwGoRCYUFiYqKkvr7+kU6n62dye3t7Z3Z29k0/Pz8xSZCNQqdpdEJE5V2DG4nv/em9hUflCBEqAPjgdRk/EwF6sC7gXIHxqYUt/bKAJCjVnDlzxBUVFfXY0EuXLpUIhcIiFot1393dHQOSaTSaXiaYly9fag8cOCClKEo9aZx/3qkdL14w5SZsqnqAbxoAvhiItxHTPISIB9ErvytjKkje3tom4E9U8Hi8ssLCwupBwzIzMwsIgnq4KTir6NBHtQ0bAs/n821dCq2trZV1dXVNQ9xKV2BgIE2SrHu719J3mDpO7XzZOYrvWQAAX480wIUASBWz6gcDf/9kQ4ESu0tkZGSuVqs1OFmKolQfr8+vMb6pwHkJNIfDudfe3q4xBqHT6fqzs7NLccyE+f9BZpyxBkBcAgDSEuPZAKBYNvfgDabAKNGVUpKkGq5cuVJsbERubu4drpVDuamsJBS8c+P48eOKoQDodLr+4uLieux2K353WGwUYz12Ns4lA4XRbPp0rNN0OVPQjjU/3qFIqoHpMkxevHix5F3vWIkpAH6z9tAbNmygTQHQ6XT9arX6qbW1dY3vjF15zH9/v/NFJ0Vy7gLAe+YY74IQ0fjZ1kZ9qkvcrGoiCPKBXC6vMKV89uzZ9LK5CVJTAKZNEImjo6OHBaD7D4gWNpt919id9oTJawGQGgBsXwXgT4ve2UEzf7blji7F6XE4xadPn5Y52bv/IlMNpkeK5NTRNK18FQCdTtdfUlJSTxDk44SI6nqmHA8XXykAHBnOeHuEUHPKjpcd+lS57KtiPp9f2tPT89NwSrVabZ+dnV0FzuPGAOa/HUkLhcKb5hivG+Bjx47JOFb8UlytB+Uc39r0DAF6BAAcUwCi3JznGAQui7JWXrt2rdQcpSqVqhn7sIOdW+Hy+Ydkq33PFrgIZsh4PN6dhoaGJ5YA6Onp6RcIBKVrlqQb2DNWMF0OABtMAZBuDflen0k+DpPXcbncSksU46KVnp6e7+/vL/Hx8ZFkZGQUdHV16SyRoRvgy5cvl1ux7QzS+IeBf8Z9U/ZQxvMRQs/Sdvf0MgIPZ47ckSh/XczhcO7u31iuZBY4APRgKAA+djbON5loOSz7KoVCUWWJwufPn7eVlZXdzcnJKcnMzJQnJyfT+/fvl2JOSEigm5ubWy2Rt2TJEmnA7L0GaZUk2fcBYJQxgFgPFx99Hj+1s0OLb0Sr1b7y+s+fP184ZcqUG2w2+x5CRCvXil/Jt3W9idsNoWB6gZvzXOlEV1+5Fcum8uTJkzcsAXDixIl8tzFzrzMB2NmMuQUAM4wBfBE4/1N9Ho8WfXfb3t6+3Bwlzs7OJd4eq6RHNt9/YqoOYJ4xKfR6fHy82NI4cLQfbxDIAt6E/IHx1ID+ERPygz6AgxccUyxatOi6OUoyMjKKWBRXmbz9aetQhp+N7+uLCMoqJEl2fV5enkVJIScn5w7P1lXBlOdgPx73Rz7GAG4d3FTV8HPujpCGh4fnmato3bp1UpJgqePDZNXGALALCASCsqysLLPSsc7QPW+OdXrboLByrRzLAcDbGMD9z7c2PR38yNMtQHrw4EGLrjs9Pb3IljuqxBgAAvR8pKl027Zt9IxJaw2CmEBkEy66xgDUzAqMARw+fHjY9sGYOzo6dAihNmb1xLMxQqh9JMbrdLr+qVOnytcvzdRXd3zIAICXAb+gh2lx2u7BD6e8tcJiAJjZbPb9xM0NTQY3gNCzzs5OraWyNBpNL0EQTSe3tz0flIVXNQDwl6EAqJguhLNKTEyM2TEwyC4uLsXRom8NJjgc4DU1NQ2Wyrpw4cItns3YQqasMU7TZAAQNBQA+cHwivuDHwbM3itfvny5xQBwz4+bN6ZSnq1L0dWrV0ssleXq6lq8LuCc3n2wiyNE1JsaMf+2acVfiwc/jhJdue3u7i63VOnFixfLHOzGG5za+LHzJUlJSRYVMLFYrLRi2VSfie/VtzYLp28RA8AZMEFH53qF68e5o1HqFrzPsRRATU1NI+79mQAWTNsiFolEZtUU3c+daNnm9y/rW5uUuI5OApG4B3IzBWAJLhBGPYdKqVSqLAFQXl7egFtwppy40OsVDg4OZteAI0eOKPASjClj4PSHnYvZCAyHmWkeK6UREREWxYFIJBJPdltqMFritIr7Fw8PD1lycrIUDz+m/pfJZHUkyVInRqkaB/8/vPluI17vAIATvIIur/Y7o2DOAxwOR9nd3W1SIZNTU1MVViy76pOx7V3GxSx1d3dvmP+5ImuOY3lsbOyQh6JSqZ6yKJY6WvRtCXNlacNxKh1YAL+SFnPY9gYLJo4VryotLU32KuPxqbJZ7Pr9G8v07chQHB8mq8Q7U+P/W1paXvJ4vIqF07eKjeNnYLllNski37uoD57N71+6jdvkFy9edA0HoLa2FgdvfUpcx8ujUeq2vR/cVG8NybmzPuCP+Qunbckb7ThZSpLsOoRQ68qVKw0KZG1tbROXy61bMC3awPj1y77KB0DVAGBnCYAlOIuk7OzUu4HrqFkKb2/vYVciGo2mD2cOhNBziqIesNnseicnp3IvLy9FUFAQnZaWVlhRUfEQZxjmfzRN11Ik1Yi3d0zjt4iuliCE8C7IHUZAJz1cfJnDjQb7dmho6PXu7u5htxPmcltbW1dQUJAUr0+Y9QdzzKrvSwcKlheMkFj4Gchnxk79lSZtb2njWNlXenp6yltbWztGanhnZ2dvSkpKAUVRj8Y4esk+2/KomWk8vgkAVDtUu2wpjcZvAou8t+tBpMZ1deMUSZLk47i4OPrJkydmd5lKpbIxJCSEJkmycRR/kiIuVGzwupMa19U1QbgIB+yPACCA10SOAJA3mu8p/zymWd/oHdh4W+U6epYMP9iNGzeuKCIigs7MzCzKzc2tkkgk92iarsvKyirbt2+fZN68eT9yOJwaFmVdO9U9WHLoI+UD48wUvuLrQpK0wqf+maVbaHMIC9yPEPF4ntcm8Yltz/StbcrOTs3m9/9eOstzPT3G6W2FLXf0LQ7LvtKG41TmYOdW5OkWQAcvSJQdjVIZuMm/54Rd3d3r/M8puBxHnOOvAIAH/MrkAgAZCKFGZ8cpstW+Z+RHo9X6amkOp8ZpumJX/7N80rglYoSIhwDwzVCz7a9NNgCwHgCyAKCBQORDAX+ibPqEkOuLvWPFooVJNzYuv1C4xveMLGD2Pslcr/DruBu1YtviV8hmALgGAHED7vlGkOPA02v8wOYYv8yfB4CvBh6zPwGATQAw9b997/qN4A2lfwGBfXogMts/6gAAAABJRU5ErkJggg==" alt="information">
     #                             <p>Please be careful.<br>The selected User will be added to
-    #                              <span style="color: #460880">Technical Director</span> Groups.</p>
+    #                              <span style="color: #460880">Project Director</span> Groups.</p>
     #                         </div>
     #                     """
 
     def write(self, vals):
         res = super(CustomProjectProject, self).write(vals)
-        if 'technical_director_id' in vals:
-            for record in self:
-                user = record.env['res.users'].browse(vals['technical_director_id'])
-                group = record.env.ref('custom_project.group_technical_director')
+        # if 'technical_director_id' in vals:
+        #     for record in self:
+        #         user = record.env['res.users'].browse(vals['technical_director_id'])
+        #         group = record.env.ref('custom_project.group_project_director')
                 # if user and group and user not in group.users:  # Add the User to the group Automatically.
                 #     group.users = [(4, user.id)]
 
@@ -464,35 +463,63 @@ class MailFollowers(models.Model):
     _inherit = "mail.followers"
 
     # @api.model
+    # def unlink(self):
+    #     """Avoid deleting Admin members and 'Followers of all Projects' members from project followers
+    #     (except when deleting a task or a project)"""
+    #     print("🔴 Delete followers: ", self.mapped('partner_id').ids)
+    #
+    #     # If the deletion operation is performed on a project or task, no special review is required.
+    #     if self.env.context.get('allow_task_delete') or self.env.context.get('allow_project_delete'):
+    #         return super(MailFollowers, self).unlink()
+    #
+    #
+    #     # This code will remove the user from current task followers section
+    #     partners_to_remove = self.mapped('partner_id')
+    #     current_user = self.env.user
+    #
+    #     _logger.info(
+    #         "📌 partners_to_remove: %s | 🔍 Removed by: %s (ID: %s)",
+    #         partners_to_remove.ids,
+    #         current_user.name,
+    #         current_user.id
+    #     )
+    #
+    #     task_id_to_remove_from = self.env.context.get('task_id')
+    #
+    #     if not task_id_to_remove_from:
+    #         if self.res_model == 'project.task':
+    #             task_id_to_remove_from = self.res_id
+    #
+    #     print(f"✅ Final amount >> task_id_to_remove_from: {task_id_to_remove_from}")
+    #
+    #     if not task_id_to_remove_from:
+    #         _logger.warning("Task ID not found!")
+    #     else:
+    #         task_to_modify = self.env['project.task'].browse(task_id_to_remove_from)
+    #         print(f"task_to_modify: {task_to_modify}")
+    #
+    #         if task_to_modify.exists():
+    #             print(f"📌 Task {task_to_modify.id} Has users: {task_to_modify.user_ids.ids}")
+    #             users_to_remove = task_to_modify.user_ids.filtered(
+    #                 lambda user: user.partner_id in self.mapped('partner_id'))
+    #
+    #             if users_to_remove:
+    #                 task_to_modify.write({'user_ids': [(3, user.id) for user in users_to_remove]})
+    #                 print(f"✅ Users {users_to_remove.ids} from Task {task_to_modify.id} Deleted!")
+    #         else:
+    #             print("📌 ❌ The requested task was not found!")
+    #
+    #     # End
+    #     return super(MailFollowers, self).unlink()
+
+
     def unlink(self):
         """Avoid deleting Admin members and 'Followers of all Projects' members from project followers
         (except when deleting a task or a project)"""
         print("🔴 Delete followers: ", self.mapped('partner_id').ids)
 
-        # If the deletion operation is performed on a project or task, no special review is required.
         if self.env.context.get('allow_task_delete') or self.env.context.get('allow_project_delete'):
             return super(MailFollowers, self).unlink()
-
-        # Get admin group
-        admin_group = self.env.ref('base.group_system')
-
-        # Get Group of 'Followers of all Projects'
-        followers_group = self.env.ref('custom_project.group_followers_all_projects', raise_if_not_found=False)
-
-        for follower in self:
-            user = follower.partner_id.user_ids[:1]  # Get the first user associated with this partner
-
-            # Prevent manual deletion of members of two groups (but allow deletion if the entire project is deleted)
-            if (
-                    user
-                    and (user.has_group('base.group_system') or (followers_group and user in followers_group.users))
-                    and not self.env.context.get('deleting_whole_project')
-            ):
-                raise UserError(
-                    _("❌\nYou cannot remove an admin or a 'Followers of all Projects' member from project followers.🚫"))
-        # Mar 06
-
-        # This code will remove the user from current task followers section
 
         partners_to_remove = self.mapped('partner_id')
         current_user = self.env.user
@@ -506,9 +533,9 @@ class MailFollowers(models.Model):
 
         task_id_to_remove_from = self.env.context.get('task_id')
 
-        if not task_id_to_remove_from:
-            if self.res_model == 'project.task':
-                task_id_to_remove_from = self.res_id
+        for follower in self:
+            if not task_id_to_remove_from and follower.res_model == 'project.task':
+                task_id_to_remove_from = follower.res_id
 
         print(f"✅ Final amount >> task_id_to_remove_from: {task_id_to_remove_from}")
 
@@ -529,7 +556,6 @@ class MailFollowers(models.Model):
             else:
                 print("📌 ❌ The requested task was not found!")
 
-        # End
         return super(MailFollowers, self).unlink()
 
     # Mar 09
